@@ -45,7 +45,7 @@ The simple PowerShell usage this server was built to service:
 
 **Dor Azouri** - *Initial work*
 
-See also the list of [contributors](https://github.com/your/project/contributors) who participated in this project.
+See also the list of [contributors](https://github.com/SafeBreach-Labs/SimpleBITSServer/contributors) who participated in this project.
 
 ## License
 
