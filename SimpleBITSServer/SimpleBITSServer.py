@@ -16,8 +16,7 @@ Date: 2017-03-29T12:14:45Z
 
 """
 import os
-from BaseHTTPServer import HTTPServer
-from SimpleHTTPServer import SimpleHTTPRequestHandler
+from http.server import HTTPServer, SimpleHTTPRequestHandler
 
 
 # BITS Protocol header keys
@@ -141,7 +140,7 @@ class BITSUploadSession(object):
         """
             Combines all accepted fragments' data into one string
         """
-        return "".join([frg['data'] for frg in self.fragments])
+        return b"".join([frg['data'] for frg in self.fragments])
     
     def get_last_status_code(self):
         return self._status_code
@@ -195,12 +194,12 @@ class SimpleBITSRequestHandler(SimpleHTTPRequestHandler):
     supported_protocols = ["{7df0354d-249b-430f-820d-3d2a9bef4931}"]  # The only existing protocol version to date
     fragment_size_limit = 100*1024*1024  # bytes
 
-    def __send_response(self, headers_dict={}, status_code=HTTPStatus.OK, data=""):
+    def __send_response(self, headers_dict={}, status_code=HTTPStatus.OK, data=b""):
         """
             Sends server response w/ headers and status code
         """
         self.send_response(status_code)
-        for k, v in headers_dict.iteritems():
+        for k, v in headers_dict.items():
             self.send_header(k, v)
         self.end_headers()
 
@@ -255,15 +254,19 @@ class SimpleBITSRequestHandler(SimpleHTTPRequestHandler):
             crange, total_length = content_range.split("/")
             total_length = int(total_length)
             range_start, range_end = [int(num) for num in crange.split("-")]
-        except AttributeError, IndexError:
+        except AttributeError:
             self.__send_response(status_code = HTTPStatus.BAD_REQUEST)
             return
+        except IndexError:
+            self.__send_response(status_code = HTTPStatus.BAD_REQUEST)
+            return
+
 
         data = self.rfile.read(content_length)
 
         try:
             is_last_fragment = self.sessions[session_id].add_fragment(
-                total_length, range_start, range_end, data)          
+                total_length, range_start, range_end, data)
             headers['BITS-Received-Content-Range'] = range_end + 1
         except InvalidFragment as e:
             headers[K_BITS_ERROR_CODE] = BITSServerHResult.ZERO
@@ -389,7 +392,7 @@ class SimpleBITSRequestHandler(SimpleHTTPRequestHandler):
 
     def do_BITS_POST(self):
         headers = {}
-        bits_packet_type = self.headers.getheaders(K_BITS_PACKET_TYPE)[0].lower()
+        bits_packet_type = self.headers.get(K_BITS_PACKET_TYPE).lower()
         try:
             do_function = getattr(self, "_handle_%s" % bits_packet_type.replace("-", "_"))
             try:
@@ -398,23 +401,33 @@ class SimpleBITSRequestHandler(SimpleHTTPRequestHandler):
             except ServerInternalError as e:
                 status_code = HTTPStatus.INTERNAL_SERVER_ERROR
                 headers[K_BITS_ERROR_CODE] = BITSServerHResult.ERROR_CODE_GENERIC
+                headers[K_BITS_ERROR_CONTEXT] = BITSServerHResult.BG_ERROR_CONTEXT_REMOTE_FILE
+                self.log_message("Internal BITS Server Error. context:%s, code:%s, exception:%s", 
+                    headers[K_BITS_ERROR_CONTEXT], 
+                    headers[K_BITS_ERROR_CODE],
+                    repr(e))
         except AttributeError as e:
             # case an Unknown BITS-Packet-Type value was received by the server
             status_code = HTTPStatus.BAD_REQUEST
             headers[K_BITS_ERROR_CODE] = BITSServerHResult.E_INVALIDARG
+            headers[K_BITS_ERROR_CONTEXT] = BITSServerHResult.BG_ERROR_CONTEXT_REMOTE_FILE
+            self.log_message("Internal BITS Server Error. context:%s, code:%s, exception:%s", 
+                headers[K_BITS_ERROR_CONTEXT], 
+                headers[K_BITS_ERROR_CODE],
+                repr(e))
         
-        headers[K_BITS_ERROR_CONTEXT] = BITSServerHResult.BG_ERROR_CONTEXT_REMOTE_FILE
-        self.log_message("Internal BITS Server Error. context:%s, code:%s, exception:%s", 
-            headers[K_BITS_ERROR_CONTEXT], 
-            headers[K_BITS_ERROR_CODE],
-            repr(e.internal_exception))
+        #headers[K_BITS_ERROR_CONTEXT] = BITSServerHResult.BG_ERROR_CONTEXT_REMOTE_FILE
+        #self.log_message("Internal BITS Server Error. context:%s, code:%s, exception:%s", 
+        #    headers[K_BITS_ERROR_CONTEXT], 
+        #    headers[K_BITS_ERROR_CODE],
+        #    repr(e.internal_exception))
         self.__send_response(headers, status_code = status_code)
         
 
 def run(server_class=HTTPServer, handler_class=SimpleBITSRequestHandler, port=80):
     server_address = ('', port)
     httpd = server_class(server_address, handler_class)
-    print 'Starting BITS server...'
+    print('Starting BITS server...')
     httpd.serve_forever()
 
 
