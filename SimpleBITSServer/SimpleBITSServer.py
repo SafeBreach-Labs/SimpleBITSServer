@@ -415,14 +415,9 @@ class SimpleBITSRequestHandler(SimpleHTTPRequestHandler):
                 headers[K_BITS_ERROR_CONTEXT], 
                 headers[K_BITS_ERROR_CODE],
                 repr(e))
-        
-        #headers[K_BITS_ERROR_CONTEXT] = BITSServerHResult.BG_ERROR_CONTEXT_REMOTE_FILE
-        #self.log_message("Internal BITS Server Error. context:%s, code:%s, exception:%s", 
-        #    headers[K_BITS_ERROR_CONTEXT], 
-        #    headers[K_BITS_ERROR_CODE],
-        #    repr(e.internal_exception))
+
         self.__send_response(headers, status_code = status_code)
-        
+
 
 def run(server_class=HTTPServer, handler_class=SimpleBITSRequestHandler, port=80):
     server_address = ('', port)
